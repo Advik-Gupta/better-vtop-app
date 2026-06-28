@@ -20,8 +20,8 @@ interface TimetableEditorProps {
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   timetable: Timetable;
   setTimetable: React.Dispatch<React.SetStateAction<Timetable>>;
-  onForceSave: () => Promise<void>;
   onOpenSummary: () => void;
+  onToast?: (msg?: string) => void;
 }
 
 interface DragState {
@@ -36,12 +36,11 @@ export default function TimetableEditor({
   setSubjects,
   timetable,
   setTimetable,
-  onForceSave,
   onOpenSummary,
+  onToast,
 }: TimetableEditorProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState<"theory" | "lab">("theory");
-  const [saving, setSaving] = useState(false);
   const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({
     1: true,
     2: true,
@@ -124,6 +123,7 @@ export default function TimetableEditor({
     setSubjects(updated);
     saveToStorage("subjects", updated);
     setName("");
+    onToast?.(`Added "${newSub.name}"`);
   };
 
   const deleteSubject = (subjectId: string) => {
@@ -225,12 +225,6 @@ export default function TimetableEditor({
         return;
       }
     }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onForceSave();
-    setSaving(false);
   };
 
   const toggleDay = (day: number) => {
@@ -437,9 +431,6 @@ export default function TimetableEditor({
           </button>
           <button onClick={() => onOpenSummary()} className="tt-add-btn">
             Attendance Summary
-          </button>
-          <button onClick={handleSave} className="tt-add-btn" disabled={saving}>
-            {saving ? "Saving…" : "☁️ Save"}
           </button>
         </div>
       </div>

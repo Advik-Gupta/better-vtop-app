@@ -120,7 +120,7 @@
 /* desktop grid */
 .cal-weekday-row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   background: #080b10;
   border-bottom: 1px solid #1e2433;
 }
@@ -140,7 +140,7 @@
 
 .cal-week-row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid #141c28;
 }
 .cal-week-row:last-child {
@@ -151,6 +151,7 @@
   border-right: 1px solid #141c28;
   padding: 0.7rem 0.6rem;
   min-height: 120px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -301,6 +302,8 @@
   text-overflow: ellipsis;
   transition: color 0.15s;
   letter-spacing: 0.01em;
+  flex: 1;
+  min-width: 0;
 }
 .cal-subject-name:hover {
   color: #2dd4bf;
@@ -671,4 +674,147 @@
   margin-top: 5px;
   font-size: small;
   cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+}
+
+.important-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.important-info-btn {
+  margin-top: 5px;
+  background: none;
+  border: none;
+  color: #fbbf24;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.13s;
+}
+.important-info-btn:hover {
+  transform: scale(1.2);
+}
+
+/* Important-date description + info modal */
+.imp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: alert-fade 0.18s ease;
+}
+@keyframes alert-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.imp-modal {
+  background: #0f1117;
+  border: 1px solid #1e2433;
+  border-radius: 15px;
+  width: 100%;
+  max-width: 380px;
+  padding: 1.3rem;
+  font-family: "Syne", sans-serif;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  animation: ce-rise 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+@keyframes ce-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.imp-modal-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fbbf24;
+}
+.imp-modal-date {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+.imp-modal-hint {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: #475569;
+  margin: 0.7rem 0 0.5rem;
+}
+.imp-modal-note {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  margin: 0.8rem 0 1.1rem;
+}
+.imp-modal-input {
+  width: 100%;
+  background: #0a0d13;
+  border: 1px solid #1e2433;
+  border-radius: 9px;
+  color: #e2e8f0;
+  font-family: "Syne", sans-serif;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.7rem;
+  resize: vertical;
+  margin-bottom: 1rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.imp-modal-input:focus {
+  border-color: #fbbf24;
+}
+.imp-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.imp-btn {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.13s;
+}
+.imp-btn-ghost {
+  background: transparent;
+  border-color: #2a3347;
+  color: #64748b;
+}
+.imp-btn-ghost:hover {
+  border-color: #475569;
+  color: #94a3b8;
+}
+.imp-btn-primary {
+  background: #2d2208;
+  border-color: #7c5e12;
+  color: #fbbf24;
+}
+.imp-btn-primary:hover {
+  background: #3a2c0a;
 }

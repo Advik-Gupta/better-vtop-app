@@ -1,3 +1,22 @@
+@keyframes asm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes asm-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .asm-backdrop {
   position: fixed;
   inset: 0;
@@ -8,6 +27,19 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  animation: asm-fade-in 0.2s ease;
+}
+
+.asm-warning {
+  margin: 0 1.25rem 0.5rem;
+  font-family: "Geist Mono", monospace;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 9px;
+  padding: 0.5rem 0.7rem;
 }
 
 @media (min-width: 640px) {
@@ -27,6 +59,7 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.6);
+  animation: asm-slide-up 0.26s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (min-width: 640px) {

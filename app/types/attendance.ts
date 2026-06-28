@@ -11,7 +11,9 @@ export interface DailyCalendarEntry {
   dayName: string;
   type: DayType;
   title: string;
-  dayOrder?: string;
+  /** Weekday (1=Mon..5=Fri) whose timetable runs this day. Set for
+   *  instructional days and day-order overrides (e.g. a working Saturday). */
+  dayOrder?: Weekday;
 }
 
 export interface AttendanceRecord {

@@ -4,6 +4,7 @@ import {
   DailyCalendarEntry,
   AttendanceStatus,
 } from "@/app/types/attendance";
+import type { ExamCutoff } from "@/app/lib/calendarConfig";
 
 export const isInstructional = (day: DailyCalendarEntry) =>
   day.type === "instructional";
@@ -11,29 +12,45 @@ export const isInstructional = (day: DailyCalendarEntry) =>
 export const getSubjectClassWeight = (subject: Subject) =>
   subject.type === "lab" ? 1 : 1;
 
-const weekdayMap: Record<string, number> = {
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-};
-
 export function getEffectiveWeekday(day: DailyCalendarEntry): number {
-  const order = day.dayOrder as string | undefined;
+  // The generated calendar stores the effective weekday directly.
+  if (day.dayOrder) return day.dayOrder;
 
-  if (order) {
-    const keys = Object.keys(weekdayMap) as (keyof typeof weekdayMap)[];
-
-    for (const key of keys) {
-      if (order.includes(key)) {
-        return weekdayMap[key];
-      }
-    }
-  }
-
-  const jsDay = new Date(day.date).getDay();
+  const jsDay = new Date(day.date + "T00:00:00").getDay();
   return jsDay === 0 ? 7 : jsDay;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   75% RULE — VIT rounds the attendance percentage UP. A subject is eligible
+   when Math.ceil(pct) >= 75, i.e. anything strictly above 74.0% passes.
+   ────────────────────────────────────────────────────────────────────────── */
+
+export const REQUIRED = 75;
+
+/** Does this raw percentage satisfy the 75% rule (with round-up)? */
+export function meetsThreshold(pct: number): boolean {
+  return Math.ceil(pct) >= REQUIRED;
+}
+
+/** The percentage to display (rounded up, matching VIT's rule). */
+export function displayPct(pct: number): number {
+  return Math.ceil(pct);
+}
+
+/**
+ * Largest number of absences A (out of `total` classes) that still keeps the
+ * subject eligible — i.e. ceil(((total-A)/total)*100) >= 75. A short, exact
+ * loop avoids edge-case rounding bugs.
+ */
+export function maxAllowedAbsences(total: number): number {
+  if (total <= 0) return 0;
+  let allowed = 0;
+  for (let a = 0; a <= total; a++) {
+    const pct = ((total - a) / total) * 100;
+    if (meetsThreshold(pct)) allowed = a;
+    else break;
+  }
+  return allowed;
 }
 
 export function calculateSubjectStats(
@@ -58,8 +75,7 @@ export function calculateSubjectStats(
 
     if (!subjectIds.includes(subject.id)) return;
 
-    const weight = subject.type === "lab" ? 1 : 1;
-
+    const weight = 1;
     const status = attendance[day.date]?.[subject.id] ?? "present";
 
     if (status === "cancelled") {
@@ -89,20 +105,60 @@ export function calculateSubjectStats(
   };
 }
 
-export function safeAbsences(total: number, currentAbsent: number) {
-  const allowed = Math.floor(total * 0.25);
-  return allowed - currentAbsent;
+/**
+ * How many more classes the subject can miss before a given cutoff date while
+ * still satisfying the 75% rule. Cumulative from semester start — matches VIT
+ * checking cumulative attendance before each exam.
+ */
+export function canMissUntil(
+  subject: Subject,
+  calendar: DailyCalendarEntry[],
+  attendance: AttendanceRecord,
+  timetable: Record<number, string[]>,
+  cutoffDate: string,
+): number {
+  const stats = calculateSubjectStats(
+    subject,
+    calendar,
+    attendance,
+    timetable,
+    cutoffDate,
+  );
+  return Math.max(maxAllowedAbsences(stats.total) - stats.absent, 0);
 }
 
-export const EXAM_DATES = {
-  CAT1_START: "2026-01-27",
-  CAT2_START: "2026-03-15",
-  LAB_FAT_START: "2026-04-11",
-};
+/**
+ * The ordered exam sequence relevant to a subject:
+ *  - theory → CAT 1, CAT 2, FAT (theory/both)
+ *  - lab    → FAT (lab/both) only
+ */
+export function getExamSequenceForSubject(
+  subject: Subject,
+  cutoffs: ExamCutoff[],
+): ExamCutoff[] {
+  if (subject.type === "lab") {
+    return cutoffs.filter(
+      (c) => c.kind === "FAT" && (c.scope === "lab" || c.scope === "both"),
+    );
+  }
+  return cutoffs.filter((c) => {
+    if (c.kind === "CAT1" || c.kind === "CAT2") {
+      return c.scope === "theory" || c.scope === "both";
+    }
+    // FAT for theory subjects
+    return c.scope === "theory" || c.scope === "both";
+  });
+}
 
-function getTodayISO() {
-  const today = new Date();
-  return today.toISOString().split("T")[0];
+/** The next upcoming exam for a subject (or the last one if all have passed). */
+export function getNextExamForSubject(
+  subject: Subject,
+  cutoffs: ExamCutoff[],
+  today: string,
+): ExamCutoff | null {
+  const seq = getExamSequenceForSubject(subject, cutoffs);
+  if (seq.length === 0) return null;
+  return seq.find((e) => e.date >= today) ?? seq[seq.length - 1];
 }
 
 export function getAttendanceSnapshot(
@@ -152,4 +208,19 @@ export function getAttendanceHistory(
   });
 
   return history;
+}
+
+/** Are there any working Saturdays (day-order overrides on weekends) between
+ *  now and the cutoff? Used to warn the user that adding them improves
+ *  accuracy. We can only detect ones already added — so we surface a general
+ *  reminder whenever a future exam window exists. */
+export function hasFutureInstructionalDays(
+  calendar: DailyCalendarEntry[],
+  fromDate: string,
+  toDate: string,
+): boolean {
+  return calendar.some(
+    (d) =>
+      d.type === "instructional" && d.date > fromDate && d.date <= toDate,
+  );
 }

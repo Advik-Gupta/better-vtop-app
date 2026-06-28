@@ -1,0 +1,146 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600&family=Syne:wght@400;500;600;700;800&display=swap");
+
+@keyframes alert-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes alert-pop {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: alert-fade 0.18s ease;
+}
+
+.alert-modal {
+  position: relative;
+  background: #0f1117;
+  border: 1px solid #1e2433;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 1.4rem 1.4rem 1.2rem;
+  font-family: "Syne", sans-serif;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: alert-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.alert-accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+}
+.sev-critical .alert-accent {
+  background: linear-gradient(#f87171, #ef4444);
+}
+.sev-warning .alert-accent {
+  background: linear-gradient(#fbbf24, #f59e0b);
+}
+.sev-info .alert-accent {
+  background: linear-gradient(#818cf8, #6366f1);
+}
+
+.alert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.alert-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.sev-critical .alert-title {
+  color: #f87171;
+}
+.sev-warning .alert-title {
+  color: #fbbf24;
+}
+.sev-info .alert-title {
+  color: #a5b4fc;
+}
+.alert-count {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.62rem;
+  color: #475569;
+  background: #0a0d13;
+  border: 1px solid #1e2433;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+}
+.alert-message {
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  margin: 0 0 1.2rem;
+}
+.alert-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.alert-btn {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    transform 0.13s,
+    background 0.13s,
+    border-color 0.13s;
+}
+.alert-btn:hover {
+  transform: translateY(-1px);
+}
+.alert-btn-ghost {
+  background: transparent;
+  border-color: #2a3347;
+  color: #64748b;
+}
+.alert-btn-ghost:hover {
+  border-color: #475569;
+  color: #94a3b8;
+}
+.alert-btn-primary {
+  background: #1e1b4b;
+  border-color: #4338ca;
+  color: #c7d2fe;
+}
+.alert-btn-primary:hover {
+  background: #262163;
+}
+.sev-critical .alert-btn-primary {
+  background: #2d1515;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+.sev-critical .alert-btn-primary:hover {
+  background: #3a1a1a;
+}

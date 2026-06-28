@@ -1,14 +1,36 @@
 "use client";
 
+import { useRef } from "react";
 import "./Footer.css";
+import { exportBackup, importBackup } from "@/app/lib/storage";
 
 export default function Footer({
-  onLogout,
-  onDeleteAccount,
+  onToast,
 }: {
-  onLogout?: () => void;
-  onDeleteAccount?: () => void;
+  onToast?: (msg?: string) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExport = () => {
+    exportBackup();
+    onToast?.("Backup downloaded ✓");
+  };
+
+  const handleImportClick = () => fileRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const ok = await importBackup(file);
+    if (ok) {
+      onToast?.("Backup restored — reloading…");
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      onToast?.("Invalid backup file");
+    }
+  };
+
   return (
     <>
       <footer className="footer-root">
@@ -118,32 +140,43 @@ export default function Footer({
           </div>
 
           <div>
-            <span className="footer-col-title">Your Account</span>
+            <span className="footer-col-title">Your Data</span>
+            <p className="footer-data-note">
+              Everything is stored locally on this device. Back it up so you
+              never lose your attendance.
+            </p>
             <div className="footer-actions">
               <button
-                className="footer-action-btn footer-logout-btn"
-                onClick={onLogout}
+                className="footer-action-btn footer-export-btn"
+                onClick={handleExport}
               >
                 <svg viewBox="0 0 24 24">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Log Out
+                Export Backup
               </button>
 
               <button
-                className="footer-action-btn footer-delete-btn"
-                onClick={onDeleteAccount}
+                className="footer-action-btn footer-import-btn"
+                onClick={handleImportClick}
               >
                 <svg viewBox="0 0 24 24">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6M14 11v6" />
-                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Erase Data &amp; Delete Account
+                Import Backup
               </button>
+
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                style={{ display: "none" }}
+              />
             </div>
           </div>
         </div>

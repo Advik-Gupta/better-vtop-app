@@ -24,3 +24,41 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Top bar (semester name + calendar link) ── */
+.page-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-family: "Geist Mono", monospace;
+}
+.page-sem-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #94a3b8;
+}
+.page-cal-link {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border-radius: 9px;
+  border: 1px solid #2e2a5e;
+  background: #14152e;
+  color: #c7d2fe;
+  text-decoration: none;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.page-cal-link:hover {
+  background: #1e1b4b;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.25);
+}
+.page-cal-link:active {
+  transform: translateY(0);
+}

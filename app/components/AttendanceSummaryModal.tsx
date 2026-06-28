@@ -1,6 +1,13 @@
 "use client";
 
-import { calculateSubjectStats, EXAM_DATES } from "@/app/lib/attendanceLogic";
+import {
+  calculateSubjectStats,
+  canMissUntil,
+  getExamSequenceForSubject,
+  displayPct,
+  meetsThreshold,
+} from "@/app/lib/attendanceLogic";
+import type { ExamCutoff } from "@/app/lib/calendarConfig";
 import {
   Subject,
   DailyCalendarEntry,
@@ -14,11 +21,12 @@ interface AttendanceSummaryModalProps {
   calendar: DailyCalendarEntry[];
   attendance: AttendanceRecord;
   timetable: Record<number, string[]>;
+  cutoffs: ExamCutoff[];
   onClose: () => void;
 }
 
 function getPctColor(p: number) {
-  return p >= 85 ? "#2dd4bf" : p >= 75 ? "#fbbf24" : "#f87171";
+  return p >= 85 ? "#2dd4bf" : meetsThreshold(p) ? "#fbbf24" : "#f87171";
 }
 
 function formatExamDate(d: string) {
@@ -35,18 +43,10 @@ export default function AttendanceSummaryModal({
   calendar,
   attendance,
   timetable,
+  cutoffs,
   onClose,
 }: AttendanceSummaryModalProps) {
   const today = new Date().toISOString().split("T")[0];
-
-  const examSequence = [
-    { name: "CAT 1", date: EXAM_DATES.CAT1_START },
-    { name: "CAT 2", date: EXAM_DATES.CAT2_START },
-    { name: "LAB FAT", date: EXAM_DATES.LAB_FAT_START },
-  ];
-  const nextExam =
-    examSequence.find((e) => e.date > today) ??
-    examSequence[examSequence.length - 1];
 
   const rows = subjects.map((sub) => {
     const current = calculateSubjectStats(
@@ -57,52 +57,13 @@ export default function AttendanceSummaryModal({
       today,
     );
 
-    const cat1Stats = calculateSubjectStats(
-      sub,
-      calendar,
-      attendance,
-      timetable,
-      EXAM_DATES.CAT1_START,
-    );
-    const cat2Stats = calculateSubjectStats(
-      sub,
-      calendar,
-      attendance,
-      timetable,
-      EXAM_DATES.CAT2_START,
-    );
+    const seq = getExamSequenceForSubject(sub, cutoffs);
+    const nextExam = seq.find((e) => e.date >= today) ?? seq[seq.length - 1] ?? null;
+    const canMiss = nextExam
+      ? canMissUntil(sub, calendar, attendance, timetable, nextExam.date)
+      : 0;
 
-    const cat1Allowed = Math.floor(cat1Stats.total * 0.25);
-    const cat1Safe = cat1Allowed - cat1Stats.absent;
-    const cat1Unused = Math.max(cat1Safe, 0);
-
-    const cat2WindowTotal = cat2Stats.total - cat1Stats.total;
-    const cat2WindowAbsent = cat2Stats.absent - cat1Stats.absent;
-    const cat2WindowAllowed = Math.floor(cat2WindowTotal * 0.25);
-    const cat2WindowSafe = cat2WindowAllowed - cat2WindowAbsent;
-    const cat2Safe = cat1Unused + Math.max(cat2WindowSafe, 0);
-
-    let canMiss: number;
-    if (nextExam.name === "CAT 1") {
-      canMiss = Math.max(cat1Safe, 0);
-    } else if (nextExam.name === "CAT 2") {
-      canMiss = Math.max(cat2Safe, 0);
-    } else {
-      const fatStats = calculateSubjectStats(
-        sub,
-        calendar,
-        attendance,
-        timetable,
-        nextExam.date,
-      );
-      const fatWindowTotal = fatStats.total - cat2Stats.total;
-      const fatWindowAbsent = fatStats.absent - cat2Stats.absent;
-      const fatWindowAllowed = Math.floor(fatWindowTotal * 0.25);
-      const fatWindowSafe = fatWindowAllowed - fatWindowAbsent;
-      canMiss = Math.max(cat2Safe + Math.max(fatWindowSafe, 0), 0);
-    }
-
-    return { sub, current, canMiss };
+    return { sub, current, nextExam, canMiss };
   });
 
   const totals = rows.reduce(
@@ -114,10 +75,9 @@ export default function AttendanceSummaryModal({
     }),
     { total: 0, present: 0, absent: 0, canMiss: 0 },
   );
-  const overallPct =
-    totals.total === 0
-      ? 100
-      : Number(((totals.present / totals.total) * 100).toFixed(1));
+  const overallRaw =
+    totals.total === 0 ? 100 : (totals.present / totals.total) * 100;
+  const overallPct = displayPct(overallRaw);
 
   return (
     <div className="asm-backdrop" onClick={onClose}>
@@ -127,11 +87,8 @@ export default function AttendanceSummaryModal({
           <div className="asm-header-left">
             <span className="asm-title">Attendance Summary</span>
             <div className="asm-exam-pill">
-              <span className="asm-exam-label">Next exam</span>
-              <span className="asm-exam-name">{nextExam.name}</span>
-              <span className="asm-exam-date">
-                {formatExamDate(nextExam.date)}
-              </span>
+              <span className="asm-exam-label">Per-subject</span>
+              <span className="asm-exam-name">next exam shown below</span>
             </div>
           </div>
           <button className="asm-close" onClick={onClose} aria-label="Close">
@@ -145,14 +102,14 @@ export default function AttendanceSummaryModal({
             {
               val: `${overallPct}%`,
               label: "Overall",
-              color: getPctColor(overallPct),
+              color: getPctColor(overallRaw),
             },
             { val: totals.total, label: "Total classes", color: "#e2e8f0" },
             { val: totals.present, label: "Present", color: "#2dd4bf" },
             { val: totals.absent, label: "Absent", color: "#f87171" },
             {
               val: totals.canMiss,
-              label: `Can miss till ${nextExam.name}`,
+              label: "Can miss (next exam)",
               color: totals.canMiss === 0 ? "#f87171" : "#fbbf24",
             },
           ].map((item, i) => (
@@ -163,6 +120,12 @@ export default function AttendanceSummaryModal({
               <span className="asm-banner-label">{item.label}</span>
             </div>
           ))}
+        </div>
+
+        <div className="asm-warning">
+          ⚠ Add any working Saturdays (with their day order) in the Academic
+          Calendar until your next exam for the most accurate &ldquo;can
+          miss&rdquo; counts.
         </div>
 
         {/* ── Body ── */}
@@ -183,13 +146,14 @@ export default function AttendanceSummaryModal({
                     <th className="num">Present</th>
                     <th className="num">Absent</th>
                     <th>Attendance</th>
-                    <th>Can miss till {nextExam.name}</th>
+                    <th>Next exam</th>
+                    <th>Can miss</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ sub, current, canMiss }) => {
-                    const pct = current.percentage;
-                    const color = getPctColor(pct);
+                  {rows.map(({ sub, current, nextExam, canMiss }) => {
+                    const pct = displayPct(current.percentage);
+                    const color = getPctColor(current.percentage);
                     return (
                       <tr key={sub.id}>
                         <td className="asm-td-name">{sub.name}</td>
@@ -216,12 +180,27 @@ export default function AttendanceSummaryModal({
                               <div
                                 className="asm-bar-fill"
                                 style={{
-                                  width: `${Math.min(pct, 100)}%`,
+                                  width: `${Math.min(current.percentage, 100)}%`,
                                   background: color,
                                 }}
                               />
                             </div>
                           </div>
+                        </td>
+                        <td className="asm-muted">
+                          {nextExam ? (
+                            <>
+                              <strong style={{ color: "#c7d2fe" }}>
+                                {nextExam.label}
+                              </strong>
+                              <br />
+                              <span style={{ fontSize: "0.68rem" }}>
+                                {formatExamDate(nextExam.date)}
+                              </span>
+                            </>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td>
                           <span
@@ -251,9 +230,9 @@ export default function AttendanceSummaryModal({
 
               {/* Mobile cards */}
               <div className="asm-cards">
-                {rows.map(({ sub, current, canMiss }) => {
-                  const pct = current.percentage;
-                  const color = getPctColor(pct);
+                {rows.map(({ sub, current, nextExam, canMiss }) => {
+                  const pct = displayPct(current.percentage);
+                  const color = getPctColor(current.percentage);
                   return (
                     <div key={sub.id} className="asm-card">
                       <div className="asm-card-top">
@@ -274,7 +253,7 @@ export default function AttendanceSummaryModal({
                         <div
                           className="asm-bar-fill"
                           style={{
-                            width: `${Math.min(pct, 100)}%`,
+                            width: `${Math.min(current.percentage, 100)}%`,
                             background: color,
                           }}
                         />
@@ -319,7 +298,7 @@ export default function AttendanceSummaryModal({
 
                       <div className="asm-card-miss-row">
                         <span className="asm-card-miss-label">
-                          Can miss till {nextExam.name}:
+                          Can miss till {nextExam ? nextExam.label : "exam"}:
                         </span>
                         <span
                           className="asm-miss-pill"

@@ -1,0 +1,344 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600&family=Syne:wght@400;500;600;700;800&display=swap");
+
+.ce-root {
+  font-family: "Syne", sans-serif;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+.ce-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.ce-back {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  color: #818cf8;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.ce-back:hover {
+  color: #a5b4fc;
+}
+.ce-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  margin: 0.3rem 0 0;
+  letter-spacing: -0.02em;
+}
+.ce-subtitle {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0.15rem 0 0;
+}
+.ce-reset-btn {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid #7f1d1d;
+  background: #2d1515;
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ce-reset-btn:hover {
+  background: #3a1a1a;
+  transform: translateY(-1px);
+}
+
+.ce-hint {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #64748b;
+  background: #0a0d13;
+  border: 1px solid #1e2433;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  margin: 1rem 0;
+}
+.ce-hint strong {
+  color: #a5b4fc;
+}
+
+.ce-month-nav {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.ce-month-btn {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 0.42rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #1e2433;
+  background: #0a0d13;
+  color: #2e3a4e;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ce-month-btn:hover {
+  color: #94a3b8;
+  border-color: #2e3a4e;
+}
+.ce-month-btn.active {
+  background: #1e1b4b;
+  border-color: #4338ca;
+  color: #c7d2fe;
+}
+
+.ce-month-title {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+}
+
+.ce-weekday-row,
+.ce-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.4rem;
+}
+.ce-weekday-row {
+  margin-bottom: 0.4rem;
+}
+.ce-wd {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-align: center;
+  color: #475569;
+  text-transform: uppercase;
+}
+.ce-wd.weekend {
+  color: #6d28d9;
+}
+
+.ce-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 1px solid #1e2433;
+  background: #0a0d13;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.4rem;
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s,
+    border-color 0.12s;
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+}
+.ce-cell:hover {
+  transform: translateY(-2px);
+  border-color: #334155;
+}
+.ce-cell.empty {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+.ce-cell-num {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.ce-cell-type {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  line-height: 1.1;
+}
+.ce-cell-order {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  font-size: 0.7rem;
+  color: #818cf8;
+}
+
+/* type colors */
+.ce-cell.t-inst {
+  border-color: #14342f;
+}
+.ce-cell.t-inst .ce-cell-type {
+  color: #2dd4bf;
+}
+.ce-cell.t-exam {
+  background: #1e1410;
+  border-color: #7c2d12;
+}
+.ce-cell.t-exam .ce-cell-type {
+  color: #fb923c;
+}
+.ce-cell.t-holiday {
+  background: #1a1020;
+  border-color: #6b21a8;
+}
+.ce-cell.t-holiday .ce-cell-type {
+  color: #c084fc;
+}
+.ce-cell.t-festival {
+  background: #1a1023;
+  border-color: #be185d;
+}
+.ce-cell.t-festival .ce-cell-type {
+  color: #f472b6;
+}
+.ce-cell.t-noinst .ce-cell-type {
+  color: #475569;
+}
+.ce-cell.t-vacation {
+  background: #0d1a24;
+  border-color: #155e75;
+}
+.ce-cell.t-vacation .ce-cell-type {
+  color: #38bdf8;
+}
+.ce-cell.t-process .ce-cell-type {
+  color: #94a3b8;
+}
+
+.ce-cell.selected {
+  border-color: #6366f1;
+  box-shadow: inset 0 0 0 1px #6366f1;
+  background: #14152e;
+}
+.ce-cell.edge {
+  box-shadow:
+    inset 0 0 0 2px #818cf8,
+    0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+/* action panel */
+.ce-panel {
+  position: sticky;
+  bottom: 1rem;
+  margin-top: 1.2rem;
+  background: #0d1018;
+  border: 1px solid #2e3a4e;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: ce-rise 0.18s ease;
+}
+@keyframes ce-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ce-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: "Geist Mono", monospace;
+  font-size: 0.78rem;
+  color: #c7d2fe;
+  margin-bottom: 0.75rem;
+}
+.ce-panel-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.ce-panel-group {
+  margin-bottom: 0.75rem;
+}
+.ce-group-label {
+  display: block;
+  font-family: "Geist Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 0.4rem;
+}
+.ce-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.ce-btn-row button {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #1e2433;
+  background: #0a0d13;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.ce-btn-row button:hover {
+  border-color: #4338ca;
+  color: #c7d2fe;
+  transform: translateY(-1px);
+}
+.ce-btn-row button.on {
+  background: #1e1b4b;
+  border-color: #6366f1;
+  color: #c7d2fe;
+}
+.ce-clear-btn {
+  width: 100%;
+  font-family: "Geist Mono", monospace;
+  font-size: 0.72rem;
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 1px dashed #334155;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.ce-clear-btn:hover {
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  .ce-root {
+    padding: 1rem;
+  }
+  .ce-weekday-row,
+  .ce-grid {
+    gap: 0.25rem;
+  }
+  .ce-cell {
+    padding: 0.25rem;
+    border-radius: 8px;
+  }
+  .ce-cell-num {
+    font-size: 0.78rem;
+  }
+  .ce-cell-type {
+    font-size: 0.46rem;
+  }
+}

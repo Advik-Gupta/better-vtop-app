@@ -1,7 +1,17 @@
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db, auth } from "./firebase";
+/* ──────────────────────────────────────────────────────────────────────────
+   LOCAL-ONLY STORAGE
+   All data lives in localStorage. No accounts, no cloud. A JSON export/import
+   backup guards against data loss if browser storage is cleared.
+   ────────────────────────────────────────────────────────────────────────── */
 
-/* ── LOCAL ── */
+export const STORAGE_KEYS = [
+  "subjects",
+  "attendance",
+  "timetable",
+  "calendarConfig",
+] as const;
+
+export type StorageKey = (typeof STORAGE_KEYS)[number];
 
 export const saveToLocal = (key: string, data: unknown) => {
   if (typeof window !== "undefined") {
@@ -12,104 +22,91 @@ export const saveToLocal = (key: string, data: unknown) => {
 export const loadFromLocal = <T>(key: string, fallback: T): T => {
   if (typeof window === "undefined") return fallback;
   const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : fallback;
-};
-
-/* ── FIREBASE ── */
-
-const getUserDocRef = () => {
-  const user = auth.currentUser;
-  if (!user) return null;
-  return doc(db, "users", user.uid);
-};
-
-export const saveToFirebase = async (): Promise<void> => {
+  if (!data) return fallback;
   try {
-    const ref = getUserDocRef();
-    if (!ref) return;
-
-    const data = {
-      subjects: loadFromLocal("subjects", []),
-      attendance: loadFromLocal("attendance", {}),
-      timetable: loadFromLocal("timetable", {}),
-    };
-
-    await setDoc(ref, { data });
-  } catch (err) {
-    console.error("Firebase save failed:", err);
-  }
-};
-
-export const loadFromFirebase = async <T>(fallback: T): Promise<T> => {
-  try {
-    const ref = getUserDocRef();
-    if (!ref) return fallback;
-
-    const snap = await getDoc(ref);
-    if (snap.exists()) return snap.data().data as T;
-    return fallback;
-  } catch (err) {
-    console.error("Firebase load failed:", err);
+    return JSON.parse(data) as T;
+  } catch {
     return fallback;
   }
 };
 
-/* ── DIRTY FLAG & AUTO-SAVE ── */
-
-let isDirty = false;
-let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
-let onAutoSaveCallback: (() => void) | null = null;
-
-export const registerAutoSaveCallback = (cb: () => void) => {
-  onAutoSaveCallback = cb;
-};
-
-export const startAutoSave = () => {
-  if (autoSaveTimer) return; // already running
-  autoSaveTimer = setInterval(async () => {
-    if (!isDirty) return;
-    await saveToFirebase();
-    isDirty = false;
-    onAutoSaveCallback?.();
-  }, 60_000); // every 60 seconds
-};
-
-export const stopAutoSave = () => {
-  if (autoSaveTimer) {
-    clearInterval(autoSaveTimer);
-    autoSaveTimer = null;
-  }
-};
-
-/* ── HYBRID ── */
+/* ── Public API (kept sync, no network) ── */
 
 export const saveToStorage = (key: string, data: unknown) => {
-  // Always save to local immediately
   saveToLocal(key, data);
-  // Mark dirty for next Firebase auto-save
-  isDirty = true;
 };
 
-export const forceSaveToFirebase = async (): Promise<void> => {
-  await saveToFirebase();
-  isDirty = false;
-};
-
-export const loadFromStorage = async <T>(
-  key: string,
-  fallback: T,
-): Promise<T> => {
-  const firebaseData = await loadFromFirebase<{
-    subjects: unknown;
-    attendance: unknown;
-    timetable: unknown;
-  } | null>(null);
-
-  if (firebaseData && firebaseData[key as keyof typeof firebaseData]) {
-    const value = firebaseData[key as keyof typeof firebaseData] as T;
-    saveToLocal(key, value);
-    return value;
-  }
-
+export const loadFromStorage = <T>(key: string, fallback: T): T => {
   return loadFromLocal(key, fallback);
 };
+
+/* ──────────────────────────────────────────────────────────────────────────
+   BACKUP — export everything to a JSON file, and restore from one.
+   ────────────────────────────────────────────────────────────────────────── */
+
+interface BackupShape {
+  __vitAttendanceBackup: true;
+  version: 1;
+  exportedAt: string;
+  data: Record<string, unknown>;
+}
+
+export function buildBackup(): BackupShape {
+  const data: Record<string, unknown> = {};
+  for (const key of STORAGE_KEYS) {
+    const raw =
+      typeof window !== "undefined" ? localStorage.getItem(key) : null;
+    if (raw !== null) {
+      try {
+        data[key] = JSON.parse(raw);
+      } catch {
+        /* skip malformed */
+      }
+    }
+  }
+  return {
+    __vitAttendanceBackup: true,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data,
+  };
+}
+
+export function exportBackup() {
+  if (typeof window === "undefined") return;
+  const backup = buildBackup();
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().split("T")[0];
+  a.href = url;
+  a.download = `vit-attendance-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Restore from a backup file. Returns true on success. Caller should reload
+ * state (or the page) afterwards.
+ */
+export async function importBackup(file: File): Promise<boolean> {
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text) as Partial<BackupShape>;
+    if (!parsed || parsed.__vitAttendanceBackup !== true || !parsed.data) {
+      return false;
+    }
+    for (const key of STORAGE_KEYS) {
+      if (key in parsed.data) {
+        saveToLocal(key, parsed.data[key]);
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -222,6 +222,39 @@
   box-shadow: 0 0 12px #f8717118;
 }
 
+.footer-data-note {
+  font-family: "Geist Mono", monospace;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: #4a5568;
+  margin: 0 0 0.7rem;
+  max-width: 220px;
+}
+
+.footer-export-btn {
+  background: #0d2926;
+  border-color: #134e4a;
+  color: #2dd4bf;
+}
+.footer-export-btn:hover {
+  background: #0f322e;
+  border-color: #2dd4bf;
+  color: #5eead4;
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.12);
+}
+
+.footer-import-btn {
+  background: #14152e;
+  border-color: #2e2a5e;
+  color: #a5b4fc;
+}
+.footer-import-btn:hover {
+  background: #1e1b4b;
+  border-color: #6366f1;
+  color: #c7d2fe;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.12);
+}
+
 .footer-action-btn svg {
   width: 13px;
   height: 13px;

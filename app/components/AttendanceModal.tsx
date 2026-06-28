@@ -1,8 +1,12 @@
 import {
   calculateSubjectStats,
-  EXAM_DATES,
+  canMissUntil,
   getAttendanceHistory,
+  getExamSequenceForSubject,
+  displayPct,
+  meetsThreshold,
 } from "@/app/lib/attendanceLogic";
+import type { ExamCutoff } from "@/app/lib/calendarConfig";
 import {
   Subject,
   DailyCalendarEntry,
@@ -24,6 +28,7 @@ interface AttendanceModalProps {
   calendar: DailyCalendarEntry[];
   attendance: AttendanceRecord;
   timetable: Record<number, string[]>;
+  cutoffs: ExamCutoff[];
   onClose: () => void;
 }
 
@@ -32,11 +37,13 @@ export default function AttendanceModal({
   calendar,
   attendance,
   timetable,
+  cutoffs,
   onClose,
 }: AttendanceModalProps) {
   if (!subject) return null;
 
   const todayISO = new Date().toISOString().split("T")[0];
+  const seq = getExamSequenceForSubject(subject, cutoffs);
 
   const overallStats = calculateSubjectStats(
     subject,
@@ -51,20 +58,56 @@ export default function AttendanceModal({
     timetable,
     todayISO,
   );
-  const cat1Stats = calculateSubjectStats(
-    subject,
-    calendar,
-    attendance,
-    timetable,
-    EXAM_DATES.CAT1_START,
-  );
-  const cat2Stats = calculateSubjectStats(
-    subject,
-    calendar,
-    attendance,
-    timetable,
-    EXAM_DATES.CAT2_START,
-  );
+
+  // One stat block per exam in the subject's sequence (cumulative cutoff).
+  const examBlocks = seq.map((exam, i) => {
+    const stats = calculateSubjectStats(
+      subject,
+      calendar,
+      attendance,
+      timetable,
+      exam.date,
+    );
+    const canMiss = canMissUntil(
+      subject,
+      calendar,
+      attendance,
+      timetable,
+      exam.date,
+    );
+    const prev = i > 0 ? seq[i - 1].date : undefined;
+    const history = getAttendanceHistory(
+      subject,
+      calendar,
+      attendance,
+      timetable,
+      exam.date,
+      prev,
+    );
+    return { exam, stats, canMiss, history };
+  });
+
+  const getPctColor = (p: number) =>
+    p >= 85 ? "#2dd4bf" : meetsThreshold(p) ? "#fbbf24" : "#f87171";
+  const getPctBg = (p: number) =>
+    p >= 85 ? "#0d2926" : meetsThreshold(p) ? "#2d2208" : "#2d1515";
+  const getPctBorder = (p: number) =>
+    p >= 85 ? "#134e4a" : meetsThreshold(p) ? "#7c2d12" : "#7f1d1d";
+
+  const statBlocks = [
+    ...examBlocks.map((b) => ({
+      label: `Before ${b.exam.label}`,
+      stats: b.stats,
+      extra: { label: "Safe absences left", value: b.canMiss },
+    })),
+    { label: "Till Today", stats: presentStats, extra: null },
+    { label: "Overall Semester", stats: overallStats, extra: null },
+  ];
+
+  const nextExam = seq.find((e) => e.date >= todayISO) ?? seq[seq.length - 1];
+  const safeTillNext = nextExam
+    ? canMissUntil(subject, calendar, attendance, timetable, nextExam.date)
+    : 0;
 
   const overallHistory = getAttendanceHistory(
     subject,
@@ -79,85 +122,6 @@ export default function AttendanceModal({
     timetable,
     todayISO,
   );
-  const cat1History = getAttendanceHistory(
-    subject,
-    calendar,
-    attendance,
-    timetable,
-    EXAM_DATES.CAT1_START,
-  );
-  const cat2History = getAttendanceHistory(
-    subject,
-    calendar,
-    attendance,
-    timetable,
-    EXAM_DATES.CAT2_START,
-    EXAM_DATES.CAT1_START,
-  );
-
-  const cat1Allowed = Math.floor(cat1Stats.total * 0.25);
-  const cat1Safe = cat1Allowed - cat1Stats.absent;
-  const cat1Unused = Math.max(cat1Safe, 0);
-
-  const cat2WindowTotal = cat2Stats.total - cat1Stats.total;
-  const cat2WindowAbsent = cat2Stats.absent - cat1Stats.absent;
-  const cat2WindowAllowed = Math.floor(cat2WindowTotal * 0.25);
-  const cat2WindowSafe = cat2WindowAllowed - cat2WindowAbsent;
-
-  const cat2Safe = cat1Unused + Math.max(cat2WindowSafe, 0);
-
-  const getPctColor = (p: number) =>
-    p >= 85 ? "#2dd4bf" : p >= 75 ? "#fbbf24" : "#f87171";
-  const getPctBg = (p: number) =>
-    p >= 85 ? "#0d2926" : p >= 75 ? "#2d2208" : "#2d1515";
-  const getPctBorder = (p: number) =>
-    p >= 85 ? "#134e4a" : p >= 75 ? "#7c2d12" : "#7f1d1d";
-
-  const statBlocks = [
-    {
-      label: "Before CAT 1",
-      stats: cat1Stats,
-      extra: { label: "Safe absences left", value: Math.max(cat1Safe, 0) },
-    },
-    {
-      label: "Before CAT 2",
-      stats: cat2Stats,
-      extra: { label: "Safe absences left", value: cat2Safe },
-    },
-    { label: "Till Today", stats: presentStats, extra: null },
-    { label: "Overall Semester", stats: overallStats, extra: null },
-  ];
-
-  const examSequence = [
-    { name: "CAT 1", date: EXAM_DATES.CAT1_START },
-    { name: "CAT 2", date: EXAM_DATES.CAT2_START },
-    { name: "LAB FAT", date: EXAM_DATES.LAB_FAT_START },
-  ];
-  const today = new Date().toISOString().split("T")[0];
-  const activeExam =
-    examSequence.find((e) => e.date > today) ??
-    examSequence[examSequence.length - 1];
-
-  const nextExamStats = calculateSubjectStats(
-    subject,
-    calendar,
-    attendance,
-    timetable,
-    activeExam.date,
-  );
-
-  let safeTillNext: number;
-  if (activeExam.name === "CAT 1") {
-    const allowed = Math.floor(nextExamStats.total * 0.25);
-    safeTillNext = allowed - nextExamStats.absent;
-  } else {
-    const windowTotal = nextExamStats.total - cat1Stats.total;
-    const windowAbsent = nextExamStats.absent - cat1Stats.absent;
-    const windowAllowed = Math.floor(windowTotal * 0.25);
-    const windowSafe = windowAllowed - windowAbsent;
-    safeTillNext = cat1Unused + Math.max(windowSafe, 0);
-  }
-  safeTillNext = Math.max(safeTillNext, 0);
 
   return (
     <>
@@ -186,43 +150,50 @@ export default function AttendanceModal({
                   {subject.type}
                 </span>
               </div>
-              <div className="modal-missable">
-                You can miss another{" "}
-                <span style={{ color: "#818cf8", fontWeight: 700 }}>
-                  {safeTillNext}
-                </span>{" "}
-                classes until {activeExam.name} to maintain 75%
-              </div>
+              {nextExam && (
+                <div className="modal-missable">
+                  You can miss another{" "}
+                  <span style={{ color: "#818cf8", fontWeight: 700 }}>
+                    {safeTillNext}
+                  </span>{" "}
+                  classes until {nextExam.label} to maintain 75%
+                </div>
+              )}
             </div>
             <button className="modal-close-btn" onClick={onClose}>
               ✕ Close
             </button>
           </div>
 
+          <div className="modal-saturday-note">
+            ⚠ Add working Saturdays (with their day order) in the Academic
+            Calendar until {nextExam ? nextExam.label : "your next exam"} for the
+            most accurate numbers.
+          </div>
+
           <div className="modal-body">
             <div className="modal-stats-col">
               <span className="modal-section-label">Attendance Breakdown</span>
               {statBlocks.map(({ label, stats, extra }) => {
-                const pct = stats.percentage;
-                const color = getPctColor(pct);
-                const bg = getPctBg(pct);
-                const border = getPctBorder(pct);
+                const color = getPctColor(stats.percentage);
+                const bg = getPctBg(stats.percentage);
+                const border = getPctBorder(stats.percentage);
                 return (
                   <div
                     key={label}
                     className="stat-block"
-                    style={{ borderColor: border + "40" }}
+                    style={{ borderColor: border + "40", background: bg + "20" }}
                   >
                     <span className="stat-block-title">{label}</span>
                     <div className="stat-pct-row">
                       <span className="stat-pct-pill" style={{ color }}>
-                        {pct}%
+                        {displayPct(stats.percentage)}%
                       </span>
                       <div className="stat-pct-bar-wrap">
                         <div
                           className="stat-pct-bar-fill"
                           style={{
-                            width: `${Math.min(pct, 100)}%`,
+                            width: `${Math.min(stats.percentage, 100)}%`,
                             background: color,
                             opacity: 0.7,
                           }}
@@ -258,8 +229,10 @@ export default function AttendanceModal({
             <div className="modal-history-col">
               <span className="modal-section-label">Absence / OD Log</span>
               {[
-                { title: "Before CAT 1", history: cat1History },
-                { title: "Before CAT 2", history: cat2History },
+                ...examBlocks.map((b) => ({
+                  title: `Before ${b.exam.label}`,
+                  history: b.history,
+                })),
                 { title: "Till Today", history: presentHistory },
                 { title: "Overall Semester", history: overallHistory },
               ].map(({ title, history }) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   DailyCalendarEntry,
   Subject,
@@ -9,6 +9,11 @@ import {
 } from "@/app/types/attendance";
 import { saveToStorage } from "@/app/lib/storage";
 import { getEffectiveWeekday } from "@/app/lib/attendanceLogic";
+import {
+  loadImportantDates,
+  saveImportantDates,
+  type ImportantDates,
+} from "@/app/lib/importantDates";
 
 import "./CalendarView.css";
 
@@ -68,20 +73,6 @@ function buildWeeks(
   return weeks;
 }
 
-function loadImportantDates(): Set<string> {
-  try {
-    const raw = localStorage.getItem("importantDates");
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveImportantDates(dates: Set<string>) {
-  localStorage.setItem("importantDates", JSON.stringify([...dates]));
-}
-
 interface CalendarViewProps {
   calendar: DailyCalendarEntry[];
   subjects: Subject[];
@@ -107,21 +98,52 @@ export default function CalendarView({
 }: CalendarViewProps) {
   const todayISO = new Date().toISOString().split("T")[0];
 
-  const [importantDates, setImportantDates] = useState<Set<string>>(() =>
+  const [importantDates, setImportantDates] = useState<ImportantDates>(() =>
     loadImportantDates(),
   );
+  // Description-entry modal (when marking a day important) and info popover.
+  const [descModal, setDescModal] = useState<string | null>(null);
+  const [descText, setDescText] = useState("");
+  const [infoModal, setInfoModal] = useState<{
+    date: string;
+    desc: string;
+  } | null>(null);
 
-  const toggleImportant = (date: string) => {
+  const isImportant = (date: string) => importantDates[date] !== undefined;
+
+  const commitImportant = (date: string, desc: string) => {
     setImportantDates((prev) => {
-      const next = new Set(prev);
-      if (next.has(date)) {
-        next.delete(date);
-      } else {
-        next.add(date);
-      }
+      const next = { ...prev, [date]: desc };
       saveImportantDates(next);
       return next;
     });
+  };
+
+  const removeImportant = (date: string) => {
+    setImportantDates((prev) => {
+      const next = { ...prev };
+      delete next[date];
+      saveImportantDates(next);
+      return next;
+    });
+  };
+
+  const toggleImportant = (date: string) => {
+    if (isImportant(date)) {
+      removeImportant(date);
+    } else {
+      setDescText("");
+      setDescModal(date);
+    }
+  };
+
+  const saveDescModal = () => {
+    if (descModal) {
+      commitImportant(descModal, descText.trim());
+      onMark();
+    }
+    setDescModal(null);
+    setDescText("");
   };
 
   const monthMap: Record<string, DailyCalendarEntry[]> = {};
@@ -179,18 +201,29 @@ export default function CalendarView({
   const STATUS_OPTIONS: AttendanceStatus[] = ["absent", "od", "cancelled"];
 
   const renderImportantBtn = (date: string, isMobile: boolean) => {
-    const isImportant = importantDates.has(date);
+    const imp = isImportant(date);
     return (
-      <button
-        onClick={() => {
-          toggleImportant(date);
-          onMark();
-        }}
-        className={`important-btn${isImportant ? " important-btn-active" : ""}${isMobile ? " important-btn-mob" : ""}`}
-        title={isImportant ? "Unmark important" : "Mark as important"}
-      >
-        {isImportant ? "★ Important" : "☆ Mark"}
-      </button>
+      <div className={`important-wrap${isMobile ? " important-wrap-mob" : ""}`}>
+        <button
+          onClick={() => toggleImportant(date)}
+          className={`important-btn${imp ? " important-btn-active" : ""}${isMobile ? " important-btn-mob" : ""}`}
+          title={imp ? "Unmark important" : "Mark as important"}
+        >
+          {imp ? "★ Important" : "☆ Mark"}
+        </button>
+        {imp && (
+          <button
+            className="important-info-btn"
+            title="View note"
+            onClick={(e) => {
+              e.stopPropagation();
+              setInfoModal({ date, desc: importantDates[date] || "" });
+            }}
+          >
+            ⓘ
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -305,7 +338,7 @@ export default function CalendarView({
                   const subjectIds: string[] =
                     timetable[getEffectiveWeekday(day)] || [];
                   const isInstructional = day.type === "instructional";
-                  const isImportant = importantDates.has(day.date);
+                  const isImportant = importantDates[day.date] !== undefined;
                   const { day: dayNum, month, year } = formatDate(day.date);
                   return (
                     <div
@@ -371,7 +404,7 @@ export default function CalendarView({
                     const subjectIds: string[] =
                       timetable[getEffectiveWeekday(day)] || [];
                     const isInstructional = day.type === "instructional";
-                    const isImportant = importantDates.has(day.date);
+                    const isImportant = importantDates[day.date] !== undefined;
                     const { day: dayNum, weekdayIdx } = formatDate(day.date);
 
                     return (
@@ -435,6 +468,80 @@ export default function CalendarView({
           </div>
         )}
       </div>
+
+      {/* Description-entry modal when marking a day important */}
+      {descModal && (
+        <div className="imp-backdrop" onClick={() => setDescModal(null)}>
+          <div className="imp-modal" onClick={(e) => e.stopPropagation()}>
+            <span className="imp-modal-title">★ Mark day as important</span>
+            <span className="imp-modal-date">{descModal}</span>
+            <p className="imp-modal-hint">
+              Add a note so we can remind you (e.g. &ldquo;Quiz 1 — Cloud
+              Computing&rdquo;). Optional.
+            </p>
+            <textarea
+              className="imp-modal-input"
+              autoFocus
+              rows={3}
+              value={descText}
+              placeholder="What's happening this day?"
+              onChange={(e) => setDescText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
+                  saveDescModal();
+                if (e.key === "Escape") setDescModal(null);
+              }}
+            />
+            <div className="imp-modal-actions">
+              <button
+                className="imp-btn imp-btn-ghost"
+                onClick={() => setDescModal(null)}
+              >
+                Cancel
+              </button>
+              <button className="imp-btn imp-btn-primary" onClick={saveDescModal}>
+                Mark important
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info popover showing the note for an important day */}
+      {infoModal && (
+        <div className="imp-backdrop" onClick={() => setInfoModal(null)}>
+          <div className="imp-modal" onClick={(e) => e.stopPropagation()}>
+            <span className="imp-modal-title">★ Important day</span>
+            <span className="imp-modal-date">{infoModal.date}</span>
+            <p className="imp-modal-note">
+              {infoModal.desc && infoModal.desc.length > 0
+                ? infoModal.desc
+                : "No note added — you may have a quiz or test today."}
+            </p>
+            <div className="imp-modal-actions">
+              <button
+                className="imp-btn imp-btn-ghost"
+                onClick={() => {
+                  removeImportant(infoModal.date);
+                  setInfoModal(null);
+                }}
+              >
+                Unmark
+              </button>
+              <button
+                className="imp-btn imp-btn-primary"
+                onClick={() => {
+                  setDescText(infoModal.desc);
+                  setDescModal(infoModal.date);
+                  setInfoModal(null);
+                }}
+              >
+                Edit note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
