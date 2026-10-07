@@ -1,14 +1,18 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   LOCAL-ONLY STORAGE
-   All data lives in localStorage. No accounts, no cloud. A JSON export/import
-   backup guards against data loss if browser storage is cleared.
+   LOCAL STORAGE
+   The last VTOP sync is cached in localStorage so the app opens instantly and
+   works offline. The user's own marks and important dates live only here - a
+   JSON export/import backup guards them if browser storage is cleared.
    ────────────────────────────────────────────────────────────────────────── */
 
 export const STORAGE_KEYS = [
-  "subjects",
-  "attendance",
-  "timetable",
-  "calendarConfig",
+  "vtopData",
+  "localMarks",
+  "importantDates",
+  "markPlans",
+  "gradePicks",
+  "extraCredits",
+  "vtopUser",
 ] as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[number];
@@ -41,7 +45,7 @@ export const loadFromStorage = <T>(key: string, fallback: T): T => {
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
-   BACKUP — export everything to a JSON file, and restore from one.
+   BACKUP - export everything to a JSON file, and restore from one.
    ────────────────────────────────────────────────────────────────────────── */
 
 interface BackupShape {
@@ -108,5 +112,13 @@ export async function importBackup(file: File): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Forget everything about the signed-in student. */
+export function clearAll() {
+  if (typeof window === "undefined") return;
+  for (const key of STORAGE_KEYS) {
+    if (key !== "vtopUser") localStorage.removeItem(key);
   }
 }

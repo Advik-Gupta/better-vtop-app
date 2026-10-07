@@ -16,13 +16,12 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "VIT Attendance Tracker",
-  description: "Track every class.",
+  description: "Your VTOP attendance, timetable, calendar and assignments in one clean view.",
   manifest: "/manifest.json",
-  themeColor: "#0f1117",
 };
 
 export const viewport = {
-  themeColor: "#0f1117",
+  themeColor: "#0b0d12",
   width: "device-width",
   initialScale: 1,
 };
