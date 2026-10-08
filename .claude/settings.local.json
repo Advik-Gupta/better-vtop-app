@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm build *)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/calendar)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/login)",
+      "Read(//private/tmp/**)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")",
+      "Bash(perl -0pi -e 's/const isImportant = importantDates\\\\.has\\\\\\(day\\\\.date\\\\\\);/const isImportant = importantDates[day.date] !== undefined;/g' app/components/CalendarView.tsx)"
+    ]
+  }
+}

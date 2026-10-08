@@ -125,7 +125,7 @@ export default function GradeHistory() {
                     <td className="num">{c.total ?? "-"}</td>
                     <td className="num">
                       <span className={`grade-pill gd-${c.grade}`}>{c.grade}</span>
-                      {!countsForGpa(c.grade) && (
+                      {!countsForGpa(c) && (
                         <span className="muted small block">not in GPA</span>
                       )}
                     </td>

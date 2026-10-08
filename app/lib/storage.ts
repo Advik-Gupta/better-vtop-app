@@ -12,6 +12,7 @@ export const STORAGE_KEYS = [
   "markPlans",
   "gradePicks",
   "extraCredits",
+  "cgpaPlan",
   "vtopUser",
 ] as const;
 

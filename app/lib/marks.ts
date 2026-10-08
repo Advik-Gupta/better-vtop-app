@@ -5,8 +5,10 @@
 
 import type {
   CourseMarks,
+  GradedCourse,
   Grades,
   RegisteredCourse,
+  Semester,
   VtopData,
 } from "@/app/types/vtop";
 
@@ -315,10 +317,21 @@ export const GRADE_POINTS: Record<string, number> = {
 
 export const GRADE_LETTERS = ["S", "A", "B", "C", "D", "E", "F"];
 
-/** Pass/fail and non-graded courses carry no grade points. */
-export const countsForGpa = (grade: string) => grade in GRADE_POINTS;
+/** VTOP's grade history writes a fail for attendance or a missed exam as
+ *  N1–N4. They weigh on the CGPA exactly like an F. */
+const gradeLetter = (grade: string) => (/^N\d$/.test(grade) ? "N" : grade);
 
-export function gpaOf(courses: { credits: number; grade: string }[]): {
+/** Non-graded requirements ("BHUM101N") are pass/fail whatever grade VTOP
+ *  prints for them - a fail there is an F that the CGPA ignores. */
+const isNonGraded = (code?: string) => !!code && /\dN$/.test(code);
+
+/** Pass/fail and non-graded courses carry no grade points. */
+export const countsForGpa = (c: { code?: string; grade: string }) =>
+  gradeLetter(c.grade) in GRADE_POINTS && !isNonGraded(c.code);
+
+export function gpaOf(
+  courses: { code?: string; credits: number; grade: string }[],
+): {
   gpa: number | null;
   credits: number;
   points: number;
@@ -326,9 +339,9 @@ export function gpaOf(courses: { credits: number; grade: string }[]): {
   let credits = 0;
   let points = 0;
   for (const c of courses) {
-    if (!countsForGpa(c.grade)) continue;
+    if (!countsForGpa(c)) continue;
     credits += c.credits;
-    points += c.credits * GRADE_POINTS[c.grade];
+    points += c.credits * GRADE_POINTS[gradeLetter(c.grade)];
   }
   return { gpa: credits ? points / credits : null, credits, points };
 }
@@ -387,9 +400,92 @@ export function projectCgpa(
 /** "BECE303L" and "BECE303P" are the theory and lab of one subject. */
 export const subjectOf = (code: string) => code.replace(/[A-Z]$/, "");
 
-/** The GPA needed this semester, over `credits`, to finish on `target`. */
-export function gpaNeeded(grades: Grades, credits: number, target: number): number | null {
-  if (credits <= 0) return null;
-  const past = gpaOf(grades.history);
-  return (target * (past.credits + credits) - past.points) / credits;
+/* ── Planning ahead ── */
+
+export interface TimelineEntry {
+  semester: Semester;
+  gpa: number | null;
+  /** Credits of that semester that count towards the CGPA. */
+  credits: number;
+  /** The CGPA once that semester's grades were in. */
+  cgpa: number | null;
+}
+
+/** The CGPA after each finished semester, oldest first. A course taken
+ *  again replaces its earlier attempt, as in VTOP's grade history. */
+export function cgpaTimeline(grades: Grades): TimelineEntry[] {
+  const effective = new Map<string, GradedCourse>();
+  return [...grades.semesters]
+    .sort((a, b) => a.semester.id.localeCompare(b.semester.id))
+    .map((s) => {
+      for (const c of s.courses) effective.set(c.code, c);
+      const own = gpaOf(s.courses);
+      return {
+        semester: s.semester,
+        gpa: s.gpa ?? own.gpa,
+        credits: own.credits,
+        cgpa: gpaOf([...effective.values()]).gpa,
+      };
+    });
+}
+
+/** A semester still to come: its credits and, once the student has settled
+ *  on one, the GPA they mean to get in it. */
+export interface PlanSemester {
+  credits: number;
+  gpa?: number;
+}
+
+export interface CgpaPlan {
+  rows: { credits: number; gpa: number; fixed: boolean; cgpaAfter: number | null }[];
+  /** The GPA every semester left open has to average to land on the target,
+   *  before capping at 10. Null when the student has fixed them all. */
+  needed: number | null;
+  /** Where the plan ends up, with open semesters capped between 0 and 10. */
+  final: number | null;
+}
+
+/** Spreads what a target CGPA still demands evenly over the semesters the
+ *  student has not fixed a GPA for. Extra credits already have their grade,
+ *  so they are banked with the first semester rather than planned. */
+export function planCgpa(
+  grades: Grades,
+  semesters: PlanSemester[],
+  target: number,
+  extras: ExtraCredit[] = [],
+): CgpaPlan {
+  const done = gpaOf(grades.history);
+  const extra = gpaOf(extras);
+  const past = {
+    gpa: done.gpa,
+    credits: done.credits + extra.credits,
+    points: done.points + extra.points,
+  };
+  const all = semesters.reduce((n, s) => n + s.credits, 0);
+  const open = semesters.filter((s) => s.gpa === undefined);
+  const openCredits = open.reduce((n, s) => n + s.credits, 0);
+  const fixedPoints = semesters.reduce(
+    (n, s) => n + (s.gpa === undefined ? 0 : s.gpa * s.credits),
+    0,
+  );
+  const needed =
+    openCredits > 0
+      ? (target * (past.credits + all) - past.points - fixedPoints) / openCredits
+      : null;
+  const share = Math.max(0, Math.min(10, needed ?? 0));
+
+  let credits = past.credits;
+  let points = past.points;
+  const rows = semesters.map((s) => {
+    const gpa = s.gpa ?? share;
+    credits += s.credits;
+    points += s.credits * gpa;
+    return {
+      credits: s.credits,
+      gpa,
+      fixed: s.gpa !== undefined,
+      cgpaAfter: credits ? points / credits : null,
+    };
+  });
+  return { rows, needed, final: rows[rows.length - 1]?.cgpaAfter ?? past.gpa };
 }

@@ -7,7 +7,7 @@ import {
   GRADE_POINTS,
   analyseCourse,
   fmt,
-  gpaNeeded,
+  gpaOf,
   gradedThisSemester,
   projectCgpa,
   reachableGrades,
@@ -16,6 +16,7 @@ import {
 } from "@/app/lib/marks";
 import { loadFromStorage, saveToStorage } from "@/app/lib/storage";
 import type { RegisteredCourse } from "@/app/types/vtop";
+import CgpaPlanner from "./CgpaPlanner";
 import { IconClose, IconPlus } from "./Icons";
 
 function AddExtra({ onAdd }: { onAdd: (e: ExtraCredit) => void }) {
@@ -102,7 +103,6 @@ export default function CgpaCalculator() {
   const grades = data.grades!;
   const courses = useMemo(() => gradedThisSemester(data), [data]);
   const skipped = (data.registered ?? []).filter((c) => !courses.includes(c));
-  const [target, setTarget] = useState("");
   const [extras, setExtras] = useState<ExtraCredit[]>(() =>
     loadFromStorage<ExtraCredit[]>("extraCredits", []),
   );
@@ -135,9 +135,7 @@ export default function CgpaCalculator() {
   const p = projectCgpa(grades, courses, picks, extras);
   const picked = courses.filter((c) => picks[c.code]).length;
   const any = picked > 0 || extras.length > 0;
-  const totalCredits =
-    courses.reduce((n, c) => n + c.credits, 0) +
-    extras.reduce((n, e) => n + e.credits, 0);
+  const courseCredits = courses.reduce((n, c) => n + c.credits, 0);
   const delta =
     p.cgpaAfter !== null && p.cgpaNow !== null ? p.cgpaAfter - p.cgpaNow : null;
 
@@ -146,9 +144,6 @@ export default function CgpaCalculator() {
       const ok = possible.get(c.code)?.grades;
       if (grade === null || !ok || ok.has(grade)) setPick(c.code, grade);
     });
-
-  const wanted = Number(target);
-  const need = target && wanted > 0 ? gpaNeeded(grades, totalCredits, wanted) : null;
 
   if (courses.length === 0) {
     return (
@@ -300,55 +295,15 @@ export default function CgpaCalculator() {
         </p>
       </section>
 
-      <section className="card pad">
-        <div className="card-head">
-          <h2>Aiming for a CGPA?</h2>
-        </div>
-        <div className="cg-target">
-          <label className="field">
-            <span>Target CGPA after this semester</span>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              max="10"
-              step="0.01"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder={grades.cgpa.toFixed(2)}
-            />
-          </label>
-          <p className="cg-answer">
-            {need === null ? (
-              <span className="muted">
-                Enter a target to see the GPA you would need over this
-                semester&apos;s {totalCredits} credits.
-              </span>
-            ) : need > 10 ? (
-              <>
-                Not reachable this semester - it would take a GPA of{" "}
-                <strong className="bad">{need.toFixed(2)}</strong>. The most you
-                can reach is{" "}
-                <strong>
-                  {(
-                    (p.creditsNow * (p.cgpaNow ?? 0) + totalCredits * 10) /
-                    (p.creditsNow + totalCredits)
-                  ).toFixed(2)}
-                </strong>
-                .
-              </>
-            ) : need <= 0 ? (
-              <>You are already above that whatever happens this semester.</>
-            ) : (
-              <>
-                You need a GPA of{" "}
-                <strong className="good">{need.toFixed(2)}</strong> this semester.
-              </>
-            )}
-          </p>
-        </div>
-      </section>
+      <CgpaPlanner
+        credits={courseCredits}
+        extras={extras}
+        pickedGpa={
+          picked === courses.length
+            ? gpaOf(courses.map((c) => ({ credits: c.credits, grade: picks[c.code] }))).gpa
+            : null
+        }
+      />
 
       <p className="muted small center">
         S 10 · A 9 · B 8 · C 7 · D 6 · E 5 · F 0. The CGPA is worked out from
