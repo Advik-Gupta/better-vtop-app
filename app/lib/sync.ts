@@ -40,79 +40,90 @@ export const logout = () => post("logout").catch(() => undefined);
 export const SYNC_STEPS = [
   { key: "semesters", label: "Finding your semester" },
   { key: "attendance", label: "Attendance, class by class" },
-  { key: "timetable", label: "Timetable" },
-  { key: "calendar", label: "Academic calendar" },
-  { key: "assignments", label: "Digital assignments" },
   { key: "marks", label: "Marks" },
-  { key: "grades", label: "Grades and CGPA" },
 ] as const;
 
 export type SyncStep = (typeof SYNC_STEPS)[number]["key"];
 
-/** Pulls everything from VTOP, one part at a time so progress is real. */
-export async function syncAll(
+/** Pulled after the app has opened. Most of these hardly ever change, so they
+ *  are only asked for when missing; assignments are refreshed every time. */
+export type Part = "assignments" | "timetable" | "calendar" | "grades" | "curriculum";
+
+export const PART_LABELS: Record<Part, string> = {
+  assignments: "assignments",
+  timetable: "timetable",
+  calendar: "academic calendar",
+  grades: "grades",
+  curriculum: "curriculum",
+};
+
+/** What has to be fetched before the app opens: the things that change from
+ *  day to day. Everything else is carried over from the last sync. */
+export async function syncQuick(
   onStep: (step: SyncStep) => void,
-  preferredSemester?: string,
+  previous: VtopData | null,
 ): Promise<VtopData> {
   onStep("semesters");
-  const { regNo, semesters } = await post<Pick<VtopData, "regNo" | "semesters">>(
-    "data",
-    { part: "semesters" },
-  );
+  const { regNo, semesters } = await post<Pick<VtopData, "regNo" | "semesters">>("data", {
+    part: "semesters",
+  });
   const semester =
-    semesters.find((s) => s.id === preferredSemester) ?? semesters[0];
+    semesters.find((s) => s.id === previous?.semester.id) ?? semesters[0];
   if (!semester) throw new Error("VTOP did not list any semesters.");
   const semesterId = semester.id;
 
   onStep("attendance");
-  const { courses, records } = await post<Pick<VtopData, "courses" | "records">>(
-    "data",
-    { part: "attendance", semesterId },
-  );
-
-  onStep("timetable");
-  const { timetable, registered } = await post<
-    Pick<VtopData, "timetable" | "registered">
-  >("data", { part: "timetable", semesterId });
-
-  onStep("calendar");
-  const { calendar } = await post<Pick<VtopData, "calendar">>("data", {
-    part: "calendar",
-    semesterId,
-    classGroup: courses[0]?.classGroup ?? "",
-  });
-
-  onStep("assignments");
-  const { assignments } = await post<Pick<VtopData, "assignments">>("data", {
-    part: "assignments",
+  const { courses, records } = await post<Pick<VtopData, "courses" | "records">>("data", {
+    part: "attendance",
     semesterId,
   });
 
   onStep("marks");
-  const { marks } = await post<Pick<VtopData, "marks">>("data", {
-    part: "marks",
-    semesterId,
-  });
+  const { marks } = await post<Pick<VtopData, "marks">>("data", { part: "marks", semesterId });
 
-  onStep("grades");
-  const { grades } = await post<Pick<VtopData, "grades">>("data", {
-    part: "grades",
-    semesterId,
-    since: semesters.map((s) => s.id).sort()[0],
-  });
-
+  const same = previous?.regNo === regNo;
+  const sameSemester = same && previous?.semester.id === semesterId;
   return {
     regNo,
     semester,
     semesters,
     courses,
     records,
-    timetable,
-    registered,
-    calendar,
-    assignments,
     marks,
-    grades,
+    timetable: sameSemester ? previous.timetable : [],
+    registered: sameSemester ? previous.registered : undefined,
+    calendar: sameSemester ? previous.calendar : [],
+    assignments: sameSemester ? previous.assignments : [],
+    grades: same ? previous.grades : undefined,
+    curriculum: same ? previous.curriculum : undefined,
+    updated: sameSemester ? previous.updated : same ? { curriculum: previous.updated?.curriculum } : {},
     syncedAt: new Date().toISOString(),
   };
+}
+
+/** The background parts this data still needs. */
+export function partsToFetch(data: VtopData): Part[] {
+  const parts: Part[] = ["assignments"];
+  if (!data.timetable.length || !data.registered) parts.push("timetable");
+  if (!data.calendar.length) parts.push("calendar");
+  if (!data.grades) parts.push("grades");
+  if (!data.curriculum?.categories.length) parts.push("curriculum");
+  return parts;
+}
+
+export async function fetchPart(part: Part, data: VtopData): Promise<Partial<VtopData>> {
+  const semesterId = data.semester.id;
+  if (part === "assignments") return post("data", { part, semesterId });
+  if (part === "timetable") return post("data", { part, semesterId });
+  if (part === "calendar") {
+    return post("data", { part, semesterId, classGroup: data.courses[0]?.classGroup ?? "" });
+  }
+  if (part === "grades") {
+    return post("data", {
+      part,
+      semesterId,
+      since: data.semesters.map((s) => s.id).sort()[0],
+    });
+  }
+  return post("data", { part, semesterId });
 }

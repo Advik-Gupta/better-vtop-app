@@ -16,6 +16,7 @@ import {
   whenLabel,
 } from "@/app/lib/engine";
 import ClassRow from "./ClassRow";
+import { IconCalendar, IconFlag, IconShield } from "./Icons";
 import PlannerCalendar from "./PlannerCalendar";
 
 export default function HomeView({
@@ -64,17 +65,25 @@ export default function HomeView({
         </div>
         <div className="hero-stats">
           <div className="hero-stat">
-            <span className="hero-num">{shownPct(attended, total)}%</span>
-            <span className="muted small">overall</span>
+            <span className="hero-icon">
+              <IconCalendar />
+            </span>
+            <div>
+              <span className="hero-num">{shownPct(attended, total)}%</span>
+              <span className="muted small">Overall attendance</span>
+            </div>
           </div>
           <div className="hero-stat">
-            <span className={`hero-num ${atRisk.length ? "warn" : "good"}`}>
-              {safeCount}
-              <span className="tile-of">/{stats.length}</span>
+            <span className="hero-icon">
+              <IconShield />
             </span>
-            <span className="muted small">
-              safe{exam ? ` till ${exam.label}` : ""}
-            </span>
+            <div>
+              <span className={`hero-num ${atRisk.length ? "" : "good"}`}>
+                {safeCount}
+                <span className="tile-of"> / {stats.length}</span>
+              </span>
+              <span className="muted small">Safe{exam ? ` till ${exam.label}` : ""}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -89,10 +98,19 @@ export default function HomeView({
       <div className="home-grid">
         <section className="card">
           <div className="card-head">
-            <h2>Today&apos;s classes</h2>
-            {blocks.length > 0 && (
-              <span className="muted small">{blocks.length}</span>
-            )}
+            <div className="card-title">
+              <span className="card-icon">
+                <IconCalendar />
+              </span>
+              <div>
+                <h2>Today&apos;s classes</h2>
+                <span className="muted small">
+                  {blocks.length
+                    ? `${blocks.length} class${blocks.length === 1 ? "" : "es"}`
+                    : "None today"}
+                </span>
+              </div>
+            </div>
           </div>
           {blocks.length > 0 ? (
             <div className="class-list">
@@ -125,7 +143,12 @@ export default function HomeView({
         <div className="stack">
           <section className="card">
             <div className="card-head">
-              <h2>{atRisk.length ? "Needs attention" : "Attendance"}</h2>
+              <div className="card-title">
+                <span className="card-icon">
+                  <IconFlag />
+                </span>
+                <h2>{atRisk.length ? "Needs attention" : "Attendance"}</h2>
+              </div>
               <button className="link" onClick={() => onSeeAll("attendance")}>
                 Exam by exam
               </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import LiveSync from "./LiveSync";
 import { useState } from "react";
 import { useApp } from "@/app/lib/appContext";
 import CgpaCalculator from "./CgpaCalculator";
@@ -51,6 +52,7 @@ export default function MarksView({ onSync }: { onSync: () => void }) {
       {section === "semester" && <MarksSemester />}
       {section === "grades" && <GradeHistory />}
       {section === "cgpa" && <CgpaCalculator />}
+      {section !== "semester" && <LiveSync parts={["grades"]} />}
     </div>
   );
 }

@@ -113,6 +113,37 @@ export interface GradedCourse {
   total?: number;
   gradingType?: string; // RG relative, AG absolute
   examMonth?: string;
+  /** The curriculum bucket VTOP counted it under: FC, DC, OE… */
+  distribution?: string;
+}
+
+export interface CurriculumCourse {
+  code: string;
+  name: string;
+  credits: number;
+  type: string;
+}
+
+export interface CurriculumCategory {
+  id: string; // FC, DLES, DC…
+  name: string;
+  /** Credits the category asks for, and the most it can count. */
+  required: number;
+  max: number;
+  courses: CurriculumCourse[];
+}
+
+/** Buckets that share one total, such as DE + OE + ME. */
+export interface CombinedCategory {
+  ids: string[];
+  min: number;
+  max: number;
+}
+
+export interface Curriculum {
+  total: number;
+  categories: CurriculumCategory[];
+  combined: CombinedCategory[];
 }
 
 export interface SemesterGrades {
@@ -147,6 +178,9 @@ export interface VtopData {
   registered?: RegisteredCourse[];
   marks?: CourseMarks[];
   grades?: Grades;
+  curriculum?: Curriculum;
+  /** When each background part was last fetched, by part name. */
+  updated?: Partial<Record<"assignments" | "timetable" | "calendar" | "grades" | "curriculum", string>>;
   syncedAt: string; // ISO timestamp
 }
 

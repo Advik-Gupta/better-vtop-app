@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useApp } from "@/app/lib/appContext";
+import type { Grades, Semester } from "@/app/types/vtop";
 import { cgpaTimeline, fmt, gpaOf, planCgpa, type ExtraCredit } from "@/app/lib/marks";
 import { loadFromStorage, saveToStorage } from "@/app/lib/storage";
 
@@ -40,10 +40,14 @@ function nameAhead(current: string, steps: number): string | null {
 const clampGpa = (n: number) => Math.round(Math.max(0, Math.min(10, n)) * 100) / 100;
 
 export default function CgpaPlanner({
+  grades,
+  semester,
   credits,
   extras,
   pickedGpa,
 }: {
+  grades: Grades;
+  semester: Semester;
   /** Graded credits on this semester's timetable. */
   credits: number;
   /** Credits added by hand above; their grades are already decided. */
@@ -51,8 +55,6 @@ export default function CgpaPlanner({
   /** The timetable's GPA from the grades picked above, once all are picked. */
   pickedGpa: number | null;
 }) {
-  const { data } = useApp();
-  const grades = data.grades!;
   const timeline = cgpaTimeline(grades);
   const now = gpaOf(grades.history).gpa;
 
@@ -61,7 +63,7 @@ export default function CgpaPlanner({
 
   const [plan, setPlan] = useState<StoredPlan>(() => {
     const blank: StoredPlan = {
-      semesterId: data.semester.id,
+      semesterId: semester.id,
       target: "",
       span: 1,
       gpas: {},
@@ -101,7 +103,7 @@ export default function CgpaPlanner({
   const label = (i: number) => ({
     title: `Sem ${done + 1 + i}`,
     sub: [
-      i === 0 ? shortName(data.semester.name) : nameAhead(data.semester.name, i),
+      i === 0 ? shortName(semester.name) : nameAhead(semester.name, i),
       i === 0 ? "this semester" : null,
     ]
       .filter(Boolean)

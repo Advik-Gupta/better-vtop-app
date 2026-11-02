@@ -15,7 +15,10 @@ import {
   parseAttendanceSummary,
   parseCalendarMonth,
   parseCalendarMonths,
+  CATEGORY_NAMES,
   parseClassGroups,
+  parseCurriculum,
+  parseCurriculumCategory,
   parseGradeHistory,
   parseMarks,
   parseRegistered,
@@ -103,6 +106,26 @@ async function grades(s: VtopSession, since: string, current: string) {
   return { grades: { ...history, semesters } };
 }
 
+async function curriculum(s: VtopSession) {
+  const page = parseCurriculum(await openMenu(s, "academics/common/Curriculum"));
+  // If the overview could not be read, ask for the buckets VTOP is known to have.
+  const list = page.categories.length
+    ? page.categories
+    : Object.entries(CATEGORY_NAMES).map(([id, name]) => ({ id, name, required: 0, max: 0 }));
+  const categories = await pooled(list, 3, async (category) => {
+    try {
+      const html = await vtopPost(s, "academics/common/curriculumCategoryView", {
+        categoryId: category.id,
+      });
+      return { ...category, courses: parseCurriculumCategory(html) };
+    } catch (err) {
+      if (err instanceof SessionExpiredError) throw err;
+      return { ...category, courses: [] };
+    }
+  });
+  return { curriculum: { total: page.total, combined: page.combined, categories } };
+}
+
 async function calendar(s: VtopSession, semSubId: string, classGroup: string) {
   await openMenu(s, "academics/common/CalendarPreview");
   const groups = parseClassGroups(
@@ -168,6 +191,7 @@ export async function POST(req: NextRequest) {
     else if (part === "assignments")
       result = await assignments(session, semesterId);
     else if (part === "marks") result = await marks(session, semesterId);
+    else if (part === "curriculum") result = await curriculum(session);
     else if (part === "grades")
       result = await grades(session, since || semesterId, semesterId);
     else throw new Error("Unknown part");

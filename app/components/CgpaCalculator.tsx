@@ -296,6 +296,8 @@ export default function CgpaCalculator() {
       </section>
 
       <CgpaPlanner
+        grades={grades}
+        semester={data.semester}
         credits={courseCredits}
         extras={extras}
         pickedGpa={

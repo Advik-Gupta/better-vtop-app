@@ -12,7 +12,8 @@
       "Read(//private/tmp/**)",
       "Bash(pkill -f \"next dev\")",
       "Bash(pkill -f \"next-server\")",
-      "Bash(perl -0pi -e 's/const isImportant = importantDates\\\\.has\\\\\\(day\\\\.date\\\\\\);/const isImportant = importantDates[day.date] !== undefined;/g' app/components/CalendarView.tsx)"
+      "Bash(perl -0pi -e 's/const isImportant = importantDates\\\\.has\\\\\\(day\\\\.date\\\\\\);/const isImportant = importantDates[day.date] !== undefined;/g' app/components/CalendarView.tsx)",
+      "Bash(python3 -I -)"
     ]
   }
 }

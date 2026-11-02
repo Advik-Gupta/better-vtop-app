@@ -15,6 +15,33 @@ const base = (props: SVGProps<SVGSVGElement>) => ({
 
 type P = SVGProps<SVGSVGElement>;
 
+export const IconCap = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 4 2 9l10 5 10-5-10-5Z" />
+    <path d="M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5M22 9v5" />
+  </svg>
+);
+export const IconSun = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </svg>
+);
+export const IconMoon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+  </svg>
+);
+export const IconShield = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3 5 6v5c0 4.4 3 8.3 7 10 4-1.7 7-5.6 7-10V6l-7-3Z" />
+  </svg>
+);
+export const IconFlag = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+  </svg>
+);
 export const IconToday = (p: P) => (
   <svg {...base(p)}>
     <circle cx="12" cy="12" r="4" />

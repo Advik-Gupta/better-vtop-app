@@ -6,9 +6,12 @@ import type {
   Assignment,
   CalendarDay,
   ClassRecord,
+  CombinedCategory,
   Course,
   CourseKind,
   CourseMarks,
+  CurriculumCategory,
+  CurriculumCourse,
   DayType,
   GradedCourse,
   Grades,
@@ -471,6 +474,7 @@ export function parseGradeHistory(html: string): Omit<Grades, "semesters"> {
         credits: num(c[4]),
         grade: c[5],
         examMonth: c[6],
+        distribution: c[8],
       });
     } else if (c.length === 3 && /^[\d.]+$/.test(c[1]) && /^[\d.]+$/.test(c[2])) {
       curriculum.push({ type: c[0], required: num(c[1]), earned: num(c[2]) });
@@ -498,4 +502,114 @@ export function parseGradeHistory(html: string): Omit<Grades, "semesters"> {
     history,
     curriculum: curriculum.filter((r) => r !== total),
   };
+}
+
+/* ── Curriculum ── */
+
+export const CATEGORY_NAMES: Record<string, string> = {
+  FC: "Foundation Core",
+  DLES: "Discipline-linked Engineering Sciences",
+  DC: "Discipline Core",
+  DE: "Discipline Elective",
+  PI: "Projects and Internship",
+  OE: "Open Elective",
+  BC: "Bridge Course",
+  NGCR: "Non-graded Core Requirement",
+  ME: "Multidisciplinary Elective",
+};
+
+/** Every piece of text, spaced apart: "FC Credit: 49 Max. Credit: 49 …". */
+function spacedText(html: string): string {
+  const $ = cheerio.load(html);
+  $("script, style").remove();
+  const parts: string[] = [];
+  const walk = (nodes: ReturnType<typeof $>) =>
+    nodes.contents().each((_, node) => {
+      if (node.type === "text") parts.push(node.data);
+      else walk($(node));
+    });
+  walk($.root());
+  return clean(parts.join(" "));
+}
+
+export function parseCurriculum(html: string): {
+  total: number;
+  categories: Omit<CurriculumCategory, "courses">[];
+  combined: CombinedCategory[];
+} {
+  const text = spacedText(html);
+  const categories = [
+    ...text.matchAll(
+      /\b([A-Z]{2,6})\s+Credit\s*:\s*([\d.]+)\s+Max\.?\s*Credit\s*:\s*([\d.]+)\s*(.*?)(?=\s+[A-Z]{2,6}\s+Credit\s*:|$)/g,
+    ),
+  ].map((m) => ({
+    id: m[1],
+    name: CATEGORY_NAMES[m[1]] ?? m[4].slice(0, 60).trim(),
+    required: num(m[2]),
+    max: num(m[3]),
+  }));
+  const combined = [
+    ...text.matchAll(
+      /Combined Category\s*:\s*([A-Z+\s]+?)\s*\|\s*Credit Min\.?\s*:\s*([\d.]+)\s*\|\s*Credit Max\.?\s*:\s*([\d.]+)/g,
+    ),
+  ].map((m) => ({
+    ids: m[1].split("+").map((id) => id.trim()).filter(Boolean),
+    min: num(m[2]),
+    max: num(m[3]),
+  }));
+  return {
+    total: num(text.match(/Total Credits\s*:\s*([\d.]+)/)?.[1] ?? ""),
+    categories,
+    combined,
+  };
+}
+
+const COURSE_CODE = /^[A-Z]{3,5}\d{3}[A-Z]?$/;
+
+/** The credits among a course row's cells. L T P J C may be separate cells or
+ *  one "3 0 2 0 4.0" cell, with other numbers beside them, so a run of five
+ *  only counts if it adds up: C = L + T + P/2 + J/4. */
+function creditsIn(cells: string[], fromColumn?: string): number {
+  if (fromColumn && Number(fromColumn) > 0) return Number(fromColumn);
+  const numbers = cells
+    .flatMap((x) => x.split(/\s+/))
+    .filter((x) => /^\d+(\.\d+)?$/.test(x))
+    .map(Number);
+  for (let i = 0; i + 5 <= numbers.length; i++) {
+    const [l, t, p, j, c] = numbers.slice(i, i + 5);
+    if (c > 0 && Math.abs(l + t + p / 2 + j / 4 - c) < 0.26) return c;
+  }
+  const plausible = numbers.filter((n) => n > 0 && n <= 30);
+  return plausible[plausible.length - 1] ?? 0;
+}
+
+/** One bucket's courses. Rows carry a code, a title and L T P J C somewhere;
+ *  the code and title may also share a cell as "BECE302L - Control Systems". */
+export function parseCurriculumCategory(html: string): CurriculumCourse[] {
+  const $ = cheerio.load(html);
+  const found = new Map<string, CurriculumCourse>();
+  let creditColumn: number | null = null;
+  $("tr").each((_, row) => {
+    if ($(row).find("tr").length) return;
+    const c = cells($, row);
+    const heading = c.findIndex((x) => /^(c|credits?)$/i.test(x));
+    if (heading >= 0 && !c.some((x) => /^[A-Z]{3,5}\d{3}/.test(x))) {
+      creditColumn = c.some((x) => /^l$/i.test(x)) || /credit/i.test(c[heading]) ? heading : null;
+      return;
+    }
+    const at = c.findIndex((x) => /^[A-Z]{3,5}\d{3}[A-Z]?(\s*-\s*.+)?$/.test(x));
+    if (at < 0) return;
+    const [first, ...rest] = c[at].split(/\s*-\s*/);
+    if (!COURSE_CODE.test(first) || found.has(first)) return;
+    const name = rest.join(" - ") || c[at + 1] || "";
+    const after = c.slice(rest.length ? at + 1 : at + 2);
+    const credits = creditsIn(after, creditColumn === null ? undefined : c[creditColumn]);
+    found.set(first, {
+      code: first,
+      name,
+      credits,
+      type: after.find((x) => x && !/^[\d.\s]+$/.test(x)) ?? "",
+    });
+  });
+  return [...found.values()];
 }

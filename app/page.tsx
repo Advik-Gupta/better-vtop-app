@@ -10,7 +10,17 @@ import {
   type ImportantDates,
 } from "@/app/lib/importantDates";
 import { clearAll, loadFromStorage, saveToStorage } from "@/app/lib/storage";
-import { SessionExpired, logout, syncAll, type SyncStep } from "@/app/lib/sync";
+import {
+  SessionExpired,
+  fetchPart,
+  logout,
+  partsToFetch,
+  syncQuick,
+  PART_LABELS,
+  type Part,
+  type SyncStep,
+} from "@/app/lib/sync";
+import { autoAccount, autoLoginPaused, listAccounts, setAutoLoginPaused } from "@/app/lib/accounts";
 import { emptyPlan, type GradePicks, type MarkPlans } from "@/app/lib/marks";
 import type { LocalMarks, VtopData } from "@/app/types/vtop";
 
@@ -18,14 +28,17 @@ import AccountSheet from "./components/AccountSheet";
 import AssignmentsView from "./components/AssignmentsView";
 import AttendanceView, { CourseSheet } from "./components/AttendanceView";
 import DaySheet from "./components/DaySheet";
+import DegreeView from "./components/DegreeView";
 import HomeView from "./components/HomeView";
 import LoginScreen from "./components/LoginScreen";
 import MarksView from "./components/MarksView";
 import SyncScreen from "./components/SyncScreen";
 import TimetableView from "./components/TimetableView";
+import ThemeToggle from "./components/ThemeToggle";
 import Toast from "./components/Toast";
 import {
   IconAward,
+  IconCap,
   IconChart,
   IconGrid,
   IconSync,
@@ -38,6 +51,7 @@ const TABS = [
   { key: "home", label: "Home", Icon: IconToday },
   { key: "attendance", label: "Attendance", Icon: IconChart },
   { key: "marks", label: "Marks", Icon: IconAward },
+  { key: "degree", label: "Degree", Icon: IconCap },
   { key: "timetable", label: "Timetable", Icon: IconGrid },
   { key: "tasks", label: "Tasks", Icon: IconTasks },
 ] as const;
@@ -113,13 +127,68 @@ export default function Page() {
     [look, marks, today],
   );
 
+  const [updating, setUpdating] = useState<Part | null>(null);
+  /** Parts asked for by hand while signed out; fetched after the next sign-in. */
+  const [wanted, setWanted] = useState<Part[]>([]);
+  const [refreshing, setRefreshing] = useState<Part[] | null>(null);
+
+  const canSignInAlone = () => {
+    const name = autoAccount();
+    const account = listAccounts().find((a) => a.username === name);
+    return Boolean(account && !account.rejected && !autoLoginPaused());
+  };
+
+  /** Fetches parts one after another once the app is already usable. Each
+   *  result is merged into whatever the data is by then. */
+  const background = useCallback(
+    async (parts: Part[], current: VtopData, userAsked = false) => {
+      for (const part of parts) {
+        setUpdating(part);
+        try {
+          const result = await fetchPart(part, current);
+          setData((prev) => {
+            if (!prev) return prev;
+            const next: VtopData = {
+              ...prev,
+              ...result,
+              updated: { ...prev.updated, [part]: new Date().toISOString() },
+            };
+            saveToStorage("vtopData", next);
+            return next;
+          });
+          if (part === "curriculum" && result.curriculum && process.env.NODE_ENV === "development") {
+            fetch("/api/curricula", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ regNo: current.regNo, curriculum: result.curriculum }),
+            }).catch(() => undefined);
+          }
+        } catch (err) {
+          setUpdating(null);
+          if (err instanceof SessionExpired) {
+            if (userAsked) {
+              setWanted(parts);
+              setLoginNotice(err.message);
+              setSigningIn(true);
+            }
+            return;
+          }
+          if (userAsked) showToast(`Could not update the ${part}.`);
+        }
+      }
+      setUpdating(null);
+      if (userAsked) showToast("Updated from VTOP");
+    },
+    [showToast],
+  );
+
   /** `auto` is a background refresh the user did not ask for: if it needs a
    *  fresh sign-in we offer one instead of dropping them on the login form. */
   const sync = useCallback(async (auto = false) => {
     setSyncError("");
     setSyncStep("semesters");
     try {
-      const fresh = await syncAll(setSyncStep, data?.semester.id);
+      const fresh = await syncQuick(setSyncStep, data);
       const kept = pruneMarks(
         buildLookup(fresh),
         loadFromStorage<LocalMarks>("localMarks", {}),
@@ -130,13 +199,16 @@ export default function Page() {
       setMarks(kept);
       setSyncStep(null);
       showToast("Synced with VTOP");
+      const parts = [...new Set([...partsToFetch(fresh), ...wanted])];
+      setWanted([]);
+      background(parts, fresh);
     } catch (err) {
       if (err instanceof SessionExpired) {
         setSyncStep(null);
-        if (auto && data) {
+        if (auto && data && !canSignInAlone()) {
           setExpiredPrompt(true);
         } else {
-          setLoginNotice(data ? err.message : "");
+          setLoginNotice(data && !canSignInAlone() ? err.message : "");
           setSigningIn(true);
         }
       } else {
@@ -149,7 +221,7 @@ export default function Page() {
         }
       }
     }
-  }, [data, showToast]);
+  }, [data, showToast, background, wanted]);
 
   // Refresh by ourselves when the app is opened, or brought back to the
   // front, with data more than a few hours old. Tried at most once per
@@ -175,7 +247,16 @@ export default function Page() {
   }, [mounted, data, syncStep, signingIn, expiredPrompt, sync]);
 
   const signOut = useCallback(async () => {
+    // Signing out means "not now": the app must not sign straight back in.
+    // Only the VTOP session ends; everything saved on this device stays.
+    setAutoLoginPaused(true);
     await logout();
+    setAccountOpen(false);
+    setLoginNotice("");
+    setSigningIn(true);
+  }, []);
+
+  const removeData = useCallback(() => {
     clearAll();
     setData(null);
     setMarks({});
@@ -231,14 +312,27 @@ export default function Page() {
         }),
       openDay: setDayOpen,
       openCourse: setCourseOpen,
+      updating,
+      refresh: setRefreshing,
     };
-  }, [data, look, marks, important, today, stats, plans, picks]);
+  }, [data, look, marks, important, today, stats, plans, picks, updating]);
+
+  // Pages ask for a refresh through state, which keeps the context free of
+  // functions that touch timers.
+  useEffect(() => {
+    if (!refreshing || !data) return;
+    const parts = refreshing;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRefreshing(null);
+    background(parts, data, true);
+  }, [refreshing, data, background]);
 
   if (!mounted) return null;
 
   if (signingIn || (!data && !syncStep)) {
     return (
       <LoginScreen
+        autoStart
         notice={loginNotice}
         onCancel={data ? () => setSigningIn(false) : undefined}
         onSuccess={() => {
@@ -275,11 +369,29 @@ export default function Page() {
             <div>
               <strong>{app.data.semester.name}</strong>
               <span className="muted small">
-                {syncing ? "Syncing with VTOP…" : `Synced ${ago(app.data.syncedAt)}`}
+                {syncing
+                  ? "Syncing with VTOP…"
+                  : updating
+                    ? `Updating ${PART_LABELS[updating]}…`
+                    : `Synced ${ago(app.data.syncedAt)}`}
               </span>
             </div>
           </div>
+          <nav className="tabs" aria-label="Sections">
+            {TABS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                className={`tab ${tab === key ? "active" : ""}`}
+                aria-current={tab === key ? "page" : undefined}
+                onClick={() => setTab(key)}
+              >
+                <Icon />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
           <div className="topbar-actions">
+            <ThemeToggle />
             <button
               className={`icon-btn ${syncing ? "spin" : ""}`}
               onClick={() => sync()}
@@ -298,24 +410,11 @@ export default function Page() {
           </div>
         </header>
 
-        <nav className="tabs" aria-label="Sections">
-          {TABS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              className={`tab ${tab === key ? "active" : ""}`}
-              aria-current={tab === key ? "page" : undefined}
-              onClick={() => setTab(key)}
-            >
-              <Icon />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-
         <main className="content">
           {tab === "home" && <HomeView onSeeAll={setTab} />}
           {tab === "attendance" && <AttendanceView />}
           {tab === "marks" && <MarksView onSync={() => sync()} />}
+          {tab === "degree" && <DegreeView onSync={() => sync()} />}
           {tab === "timetable" && <TimetableView />}
           {tab === "tasks" && <AssignmentsView />}
         </main>
@@ -333,6 +432,7 @@ export default function Page() {
             sync();
           }}
           onSignOut={signOut}
+          onRemoveData={removeData}
           onToast={showToast}
           onClose={() => setAccountOpen(false)}
         />

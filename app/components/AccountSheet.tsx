@@ -10,6 +10,7 @@ interface AccountSheetProps {
   syncing: boolean;
   onSync: () => void;
   onSignOut: () => void;
+  onRemoveData: () => void;
   onToast: (msg: string) => void;
   onClose: () => void;
 }
@@ -18,6 +19,7 @@ export default function AccountSheet({
   syncing,
   onSync,
   onSignOut,
+  onRemoveData,
   onToast,
   onClose,
 }: AccountSheetProps) {
@@ -41,10 +43,14 @@ export default function AccountSheet({
   };
 
   const signOut = () => {
+    if (window.confirm("Sign out of VTOP? Your data stays on this device.")) onSignOut();
+  };
+
+  const removeData = () => {
     const warning = localCount
-      ? `Sign out? Your ${localCount} own mark${localCount === 1 ? "" : "s"} and important dates on this device will be removed.`
-      : "Sign out and remove your data from this device?";
-    if (window.confirm(warning)) onSignOut();
+      ? `Remove everything from this device, including your ${localCount} own mark${localCount === 1 ? "" : "s"} and important dates? Export a backup first if you want to keep them.`
+      : "Remove all your data from this device?";
+    if (window.confirm(warning)) onRemoveData();
   };
 
   return (
@@ -91,8 +97,11 @@ export default function AccountSheet({
         <button className="btn" onClick={() => fileRef.current?.click()}>
           Import backup
         </button>
-        <button className="btn btn-danger" onClick={signOut}>
+        <button className="btn" onClick={signOut}>
           Sign out
+        </button>
+        <button className="btn btn-danger" onClick={removeData}>
+          Remove my data from this device
         </button>
       </div>
       <input

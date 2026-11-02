@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# the Better VTOP browser extension lives in its own repository
+/vtop-extension/

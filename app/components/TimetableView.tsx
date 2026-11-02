@@ -1,5 +1,6 @@
 "use client";
 
+import LiveSync from "./LiveSync";
 import { useState } from "react";
 import { useApp } from "@/app/lib/appContext";
 import { blocksForWeekday, dayOrderOn, weekdayOf } from "@/app/lib/engine";
@@ -70,6 +71,7 @@ export default function TimetableView() {
           Today follows the {DAYS[todayOrder - 1]} timetable.
         </p>
       )}
+      <LiveSync parts={["timetable", "calendar"]} />
     </div>
   );
 }

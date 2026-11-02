@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { CourseStats, Lookup } from "@/app/lib/engine";
 import type { ImportantDates } from "@/app/lib/importantDates";
 import type { CoursePlan, GradePicks, MarkPlans } from "@/app/lib/marks";
+import type { Part } from "@/app/lib/sync";
 import type { LocalMarks, Status, VtopData } from "@/app/types/vtop";
 
 export interface AppState {
@@ -27,6 +28,10 @@ export interface AppState {
   setPick: (code: string, grade: string | null) => void;
   openDay: (date: string) => void;
   openCourse: (code: string) => void;
+  /** The background part being fetched right now, if any. */
+  updating: Part | null;
+  /** Fetch these parts from VTOP again, signing in first if needed. */
+  refresh: (parts: Part[]) => void;
 }
 
 export const AppContext = createContext<AppState | null>(null);
